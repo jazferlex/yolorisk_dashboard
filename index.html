@@ -348,6 +348,18 @@
     <script>
         let db = null;
         let charts = {};
+        function parseCustomTimestamp(str) {
+    // Remove any special unicode spaces or characters
+    str = str.replace(/\u202F/g, ' ').trim();
+
+    // Convert to format: "Jun 2, 2025, 7:12:07.689 PM" → "Jun 2 2025 19:12:07.689"
+    const date = new Date(str);
+    if (isNaN(date)) {
+        console.warn("Invalid timestamp format:", str);
+        return new Date(); // fallback to now
+    }
+    return date;
+}
 
         // Weather condition mapping
         const weatherIcons = {
@@ -474,14 +486,16 @@
             document.getElementById('reverseSpeed').textContent = reverseSpeedCat;
 
             // Update timestamp
-            const timestamp = data.timestamp ? new Date(data.timestamp.seconds * 1000) : new Date();
+            const timestamp = data.timestamp ? parseCustomTimestamp(data.timestamp) : new Date();
             document.getElementById('lastUpdate').textContent = `Last updated: ${timestamp.toLocaleString()}`;
         }
+
+
 
         function updateActivityTable(data) {
             const tbody = document.getElementById('activityTableBody');
             tbody.innerHTML = data.slice(0, 10).map(item => {
-                const timestamp = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString() : '--';
+                const timestamp = item.timestamp ? parseCustomTimestamp(item.timestamp).toLocaleString() : '--';
                 const weather = item.weather?.condition || '--';
                 const hazards = item.hazards?.detected_hazards?.join(', ') || 'None';
                 const forwardRisk = `${item.risk_assessment?.forward_risk_level || '--'} (${item.risk_assessment?.forward_risk_score || 0})`;
@@ -515,7 +529,7 @@
 
             const last24Hours = data.filter(item => {
                 if (!item.timestamp) return false;
-                const itemTime = new Date(item.timestamp.seconds * 1000);
+                const itemTime = parseCustomTimestamp(item.timestamp);
                 const now = new Date();
                 return (now - itemTime) <= 24 * 60 * 60 * 1000;
             }).reverse();
@@ -524,7 +538,7 @@
                 type: 'line',
                 data: {
                     labels: last24Hours.map(item => {
-                        const time = new Date(item.timestamp.seconds * 1000);
+                        const time = parseCustomTimestamp(item.timestamp);
                         return time.toLocaleTimeString();
                     }),
                     datasets: [{
@@ -603,4 +617,5 @@
         window.onload = initializeFirebase;
     </script>
 </body>
+</html>
 </html>

@@ -538,9 +538,9 @@
                 type: 'line',
                 data: {
                     labels: last24Hours.map(item => {
-                        const time = parseCustomTimestamp(item.timestamp);
-                        return time.toLocaleTimeString();
-                    }),
+    const time = toDateObject(item.timestamp);
+    return time.toLocaleTimeString();
+}),
                     datasets: [{
                         label: 'Forward Risk',
                         data: last24Hours.map(item => item.risk_assessment?.forward_risk_score || 0),

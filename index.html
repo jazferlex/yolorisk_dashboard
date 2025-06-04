@@ -349,24 +349,24 @@
         let db = null;
         let charts = {};
         function parseCustomTimestamp(str) {
-    // Remove any special unicode spaces or characters
-    str = str.replace(/\u202F/g, ' ').trim();
+            // Remove any special unicode spaces or characters
+            str = str.replace(/\u202F/g, ' ').trim();
+        
+            // Convert to format: "Jun 2, 2025, 7:12:07.689 PM" → "Jun 2 2025 19:12:07.689"
+            const date = new Date(str);
+            if (isNaN(date)) {
+                console.warn("Invalid timestamp format:", str);
+                return new Date(); // fallback to now
+            }
+            return date;
+        }
 
-    // Convert to format: "Jun 2, 2025, 7:12:07.689 PM" → "Jun 2 2025 19:12:07.689"
-    const date = new Date(str);
-    if (isNaN(date)) {
-        console.warn("Invalid timestamp format:", str);
-        return new Date(); // fallback to now
-    }
-    return date;
-}
 
-
-function toDateObject(ts) {
-    if (!ts) return new Date();
-    if (typeof ts === 'object' && ts.seconds) return new Date(ts.seconds * 1000);
-    if (typeof ts === 'string') return parseCustomTimestamp(ts);
-    return new Date();
+        function toDateObject(ts) {
+            if (!ts) return new Date();
+            if (typeof ts === 'object' && ts.seconds) return new Date(ts.seconds * 1000);
+            if (typeof ts === 'string') return parseCustomTimestamp(ts);
+            return new Date();
         }
         // Weather condition mapping
         const weatherIcons = {
@@ -404,7 +404,6 @@ function toDateObject(ts) {
             // Load recent data
             db.collection('risk_assessments')
                 .orderBy('timestamp', 'desc')
-                .limit(50)
                 .get()
                 .then((querySnapshot) => {
                     const data = [];
@@ -528,53 +527,78 @@ function toDateObject(ts) {
         }
 
         function updateRiskChart(data) {
-            const ctx = document.getElementById('riskChart').getContext('2d');
-            
-            if (charts.riskChart) {
-                charts.riskChart.destroy();
-            }
-
-            const last24Hours = data.filter(item => {
-    if (!item.timestamp) return false;
-    const itemTime = toDateObject(item.timestamp); // ← Use proper parser
+    const ctx = document.getElementById('riskChart').getContext('2d');
+    if (charts.riskChart) charts.riskChart.destroy();
+    
     const now = new Date();
-    return (now - itemTime) <= 24 * 60 * 60 * 1000;
-}).reverse();
-
-            charts.riskChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: last24Hours.map(item => {
-    const time = toDateObject(item.timestamp);
-    return time.toLocaleTimeString();
-}),
-                    datasets: [{
-                        label: 'Forward Risk',
-                        data: last24Hours.map(item => item.risk_assessment?.forward_risk_score || 0),
-                        borderColor: '#4CAF50',
-                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                        tension: 0.4
-                    }, {
-                        label: 'Reverse Risk',
-                        data: last24Hours.map(item => item.risk_assessment?.reverse_risk_score || 0),
-                        borderColor: '#FF9800',
-                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 9,
-                            title: { display: true, text: 'Risk Score' }
-                        }
-                    }
-                }
-            });
+    const last24Hours = data.filter(item => {
+        const time = toDateObject(item.timestamp);
+        return now - time <= 24 * 60 * 60 * 1000;
+    });
+    
+    // Group data by hour
+    const hourlyBuckets = {};
+    
+    last24Hours.forEach(item => {
+        const time = toDateObject(item.timestamp);
+        const hourKey = time.getFullYear() + '-' + (time.getMonth() + 1) + '-' + time.getDate() + ' ' + time.getHours() + ':00';
+        
+        if (!hourlyBuckets[hourKey]) {
+            hourlyBuckets[hourKey] = { forward: [], reverse: [] };
         }
+        
+        hourlyBuckets[hourKey].forward.push(item.risk_assessment?.forward_risk_score || 0);
+        hourlyBuckets[hourKey].reverse.push(item.risk_assessment?.reverse_risk_score || 0);
+    });
+    
+    // Prepare chart data
+    const sortedHourKeys = Object.keys(hourlyBuckets).sort((a, b) => new Date(a) - new Date(b));
+    const labels = sortedHourKeys;
+    const forwardAvg = sortedHourKeys.map(hour => {
+        const scores = hourlyBuckets[hour].forward;
+        return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2);
+    });
+    const reverseAvg = sortedHourKeys.map(hour => {
+        const scores = hourlyBuckets[hour].reverse;
+        return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2);
+    });
+    
+    charts.riskChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Avg Forward Risk',
+                data: forwardAvg,
+                borderColor: '#4CAF50',
+                backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                
+                pointRadius: 1
+            }, {
+                label: 'Avg Reverse Risk',
+                data: reverseAvg,
+                borderColor: '#FF9800',
+                backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                
+                pointRadius: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 9,
+                    title: { display: true, text: 'Avg Risk Score' }
+                },
+                x: {
+                    title: { display: true, text: 'Hour (Last 24h)' }
+                }
+            }
+        }
+    });
+}
 
         function updateCorrelationChart(data) {
             const ctx = document.getElementById('correlationChart').getContext('2d');

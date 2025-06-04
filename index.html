@@ -528,11 +528,11 @@
             }
 
             const last24Hours = data.filter(item => {
-                if (!item.timestamp) return false;
-                const itemTime = parseCustomTimestamp(item.timestamp);
-                const now = new Date();
-                return (now - itemTime) <= 24 * 60 * 60 * 1000;
-            }).reverse();
+    if (!item.timestamp) return false;
+    const itemTime = toDateObject(item.timestamp); // ← Use proper parser
+    const now = new Date();
+    return (now - itemTime) <= 24 * 60 * 60 * 1000;
+}).reverse();
 
             charts.riskChart = new Chart(ctx, {
                 type: 'line',

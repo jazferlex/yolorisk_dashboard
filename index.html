@@ -361,6 +361,13 @@
     return date;
 }
 
+
+function toDateObject(ts) {
+    if (!ts) return new Date();
+    if (typeof ts === 'object' && ts.seconds) return new Date(ts.seconds * 1000);
+    if (typeof ts === 'string') return parseCustomTimestamp(ts);
+    return new Date();
+        }
         // Weather condition mapping
         const weatherIcons = {
             'Sunny': '☀️', 'Clear': '☀️', 'Partly cloudy': '⛅', 'Cloudy': '☁️',
